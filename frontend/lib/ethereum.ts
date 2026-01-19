@@ -1,4 +1,4 @@
-import { createPublicClient, http, defineChain } from 'viem';
+import { createPublicClient, http, defineChain, parseAbiItem, formatUnits } from 'viem';
 import { mainnet, sepolia } from 'viem/chains';
 
 // Mock chain for local devnet if needed
@@ -29,3 +29,20 @@ export const ethClient = createPublicClient({
 export const ETH_USDC_CONTRACT = isDevnet 
   ? '0x5FbDB2315678afecb367f032d93F642f64180aa3' // Mock local address
   : '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238'; // Sepolia USDC
+
+const BALANCE_OF_ABI = parseAbiItem('function balanceOf(address account) view returns (uint256)');
+
+export async function getUSDCBalance(address: `0x${string}`) {
+  try {
+    const balance = await ethClient.readContract({
+      address: ETH_USDC_CONTRACT,
+      abi: [BALANCE_OF_ABI],
+      functionName: 'balanceOf',
+      args: [address],
+    });
+    return formatUnits(balance, 6); // USDC has 6 decimals
+  } catch (error) {
+    console.error("Error fetching USDC balance:", error);
+    return '0';
+  }
+}
