@@ -3,15 +3,34 @@
 import { useState, useEffect } from 'react';
 import { useStacksAuth } from '@/lib/useStacksAuth';
 import { getUSDCBalance } from '@/lib/ethereum';
-import { ArrowRight, Lock, Unlock, Wallet } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { watchUSDCDeposits } from '@/lib/bridge-tracker';
+import { ExecutionConsole } from './ExecutionConsole';
+import { ArrowRight, Lock, Unlock, Wallet, Activity, Code2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export function BridgeFlowMap() {
   const { userData, network } = useStacksAuth();
   const [ethBalance, setEthBalance] = useState<string>('0');
   const [usdcxBalance, setUsdcxBalance] = useState<string>('0');
+  const [recentDeposit, setRecentDeposit] = useState<any>(null);
+  const [showConsole, setShowConsole] = useState(false);
+  
   // Mock ETH address for now, in a real app this would come from a wallet connection
   const mockEthAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'; 
+
+  // Mock Transaction Data for Demo
+  const mockTxData = {
+      contractAddress: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM',
+      contractName: 'usdcx-escrow-v1',
+      functionName: 'lock-funds',
+      functionArgs: [
+          { type: 'uint', value: '100000000' },
+          { type: 'principal', value: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM' }
+      ],
+      postConditions: [
+          { type: 'stx-transfer', amount: '100000000', from: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM' }
+      ]
+  };
 
   useEffect(() => {
     async function fetchBalances() {
@@ -20,7 +39,6 @@ export function BridgeFlowMap() {
       setEthBalance(ethBal);
 
       // 2. Fetch Stacks USDCx Balance (Mock for now until contract interaction is set up)
-      // In a real scenario, we would call the Stacks node API
       if (userData) {
           // const stxBal = await getUSDCxBalance(userData.profile.stxAddress.testnet);
           setUsdcxBalance('100'); // Mocked
@@ -29,12 +47,44 @@ export function BridgeFlowMap() {
 
     fetchBalances();
     const interval = setInterval(fetchBalances, 10000); // Poll every 10s
-    return () => clearInterval(interval);
+    
+    // 3. Setup Bridge Listener
+    const unwatch = watchUSDCDeposits(mockEthAddress, (deposit) => {
+        console.log("Deposit detected:", deposit);
+        setRecentDeposit(deposit);
+        // Refresh balances immediately on deposit
+        fetchBalances();
+        
+        // Clear notification after 5s
+        setTimeout(() => setRecentDeposit(null), 5000);
+    });
+
+    return () => {
+        clearInterval(interval);
+        unwatch();
+    };
   }, [userData]);
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-6 bg-white rounded-xl shadow-sm border border-slate-200">
+    <div className="w-full max-w-4xl mx-auto p-6 bg-white rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
       <h2 className="text-xl font-bold mb-6 text-slate-800">USDC Bridge Flow</h2>
+      
+      <AnimatePresence>
+        {recentDeposit && (
+            <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="absolute top-4 right-4 bg-emerald-50 border border-emerald-200 p-3 rounded-lg shadow-md flex items-center gap-2 z-10"
+            >
+                <Activity className="w-4 h-4 text-emerald-600 animate-spin" />
+                <div>
+                    <p className="text-xs font-bold text-emerald-800">Deposit Detected!</p>
+                    <p className="text-xs text-emerald-600">Tx: {recentDeposit.hash.slice(0, 8)}...</p>
+                </div>
+            </motion.div>
+        )}
+      </AnimatePresence>
       
       <div className="flex items-center justify-between gap-4">
         {/* Ethereum Side */}
@@ -86,16 +136,36 @@ export function BridgeFlowMap() {
         </div>
       </div>
       
-      {/* Escrow Status (Future Integration) */}
+      {/* Escrow Status & Console Toggle */}
       <div className="mt-6 pt-6 border-t border-slate-100">
          <div className="flex items-center justify-between">
             <div className="text-sm text-slate-500">
                 Escrow Status: <span className="text-emerald-600 font-medium">Ready</span>
             </div>
-            <button className="px-4 py-2 text-sm bg-slate-900 text-white rounded-md hover:bg-slate-800 transition-colors">
-                View Contract
+            <button 
+                onClick={() => setShowConsole(!showConsole)}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-slate-900 text-white rounded-md hover:bg-slate-800 transition-colors"
+            >
+                <Code2 className="w-4 h-4" />
+                {showConsole ? 'Hide Console' : 'View Transaction'}
             </button>
          </div>
+
+         <AnimatePresence>
+            {showConsole && (
+                <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                >
+                    <ExecutionConsole 
+                        txData={mockTxData} 
+                        onClose={() => setShowConsole(false)} 
+                    />
+                </motion.div>
+            )}
+         </AnimatePresence>
       </div>
     </div>
   );
