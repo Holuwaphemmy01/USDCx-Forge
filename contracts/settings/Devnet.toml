@@ -1,0 +1,4 @@
+[network]
+name = "devnet"
+[accounts]
+deployer = { mnemonic = "fetch outside black test wash cover just alter gag judge frantic jam" }

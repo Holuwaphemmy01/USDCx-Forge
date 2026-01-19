@@ -1,0 +1,8 @@
+node_modules
+.next
+.clarinet
+contracts/.clarinet
+contracts/deployments
+contracts/requirements
+*.log
+.DS_Store

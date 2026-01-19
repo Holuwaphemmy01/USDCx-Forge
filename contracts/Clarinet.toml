@@ -1,0 +1,18 @@
+[project]
+name = "usdcx-integration-studio"
+description = "USDCx Integration Studio Contracts"
+authors = []
+telemetry = true
+cache_dir = "./.cache"
+requirements = []
+[contracts]
+[repl]
+cost_abstraction = true
+[analysis]
+passes = ["check_checker"]
+
+[analysis.check_checker]
+strict = false
+trusted_sender = false
+trusted_caller = false
+callee_filter = false
