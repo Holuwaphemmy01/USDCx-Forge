@@ -60,14 +60,35 @@ export function analyzeContract(code: string): SafetyIssue[] {
   // Look for (contract-call? ...) that isn't wrapped in (try! ...) or (unwrap! ...) or (match ...)
   // This regex looks for contract-call? that is preceded immediately by an opening parenthesis of a block (like 'begin') 
   // rather than a handling function.
-  const unsafeCallRegex = /\(\s*begin\s*[^)]*\(contract-call\?/g;
-  if (unsafeCallRegex.test(code)) {
-      issues.push({
-          id: 'unsafe-contract-call',
-          severity: 'medium',
-          title: 'Unchecked Contract Call',
-          description: 'A contract-call? appears to be used without handling its return value (try!, unwrap!, etc.). This means failures might be ignored.',
-      });
+  // We improve this by specifically looking for common transfer functions (transfer, burn, mint) that return results.
+  
+  // Matches: (contract-call? .usdc transfer ...)
+  const contractCallRegex = /\(contract-call\?\s+[^)]+\s+(transfer|mint|burn)\s+[^)]+\)/g;
+  let callMatch;
+  
+  while ((callMatch = contractCallRegex.exec(code)) !== null) {
+      const callString = callMatch[0];
+      const startIndex = callMatch.index;
+      
+      // Look backwards from the start of the call to see if it's wrapped
+      // We look for 'try!', 'unwrap!', 'unwrap-panic', 'match' before this call
+      // Simplistic check: grab the preceding 20 chars
+      const precedingContext = code.substring(Math.max(0, startIndex - 20), startIndex);
+      
+      const isWrapped = /try!\s*\(?$/.test(precedingContext) || 
+                        /unwrap!\s*\(?$/.test(precedingContext) || 
+                        /unwrap-panic\s*\(?$/.test(precedingContext) ||
+                        /match\s*\(?$/.test(precedingContext);
+
+      if (!isWrapped) {
+          issues.push({
+              id: `unsafe-call-${startIndex}`,
+              severity: 'medium',
+              title: 'Unchecked Transfer Result',
+              description: `A '${callMatch[1]}' call was detected that does not appear to check its return value. In Clarity, if a contract call fails and is not unwrapped, the transaction might not revert as expected. Use (try! ...) or (unwrap! ...).`,
+              line: code.substring(0, startIndex).split('\n').length
+          });
+      }
   }
 
   // 3. Check for USDCx SIP-010 Trait Usage
