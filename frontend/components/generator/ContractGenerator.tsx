@@ -28,6 +28,8 @@ export function ContractGenerator() {
     }, 500);
   };
 
+  const [deploymentTxId, setDeploymentTxId] = useState<string | null>(null);
+
   const handleDeploy = () => {
     if (!generatedCode) return;
     
@@ -41,7 +43,7 @@ export function ContractGenerator() {
       },
       onFinish: (data) => {
         console.log('Contract deployed!', data);
-        alert(`Contract deployment submitted! TxId: ${data.txId}`);
+        setDeploymentTxId(data.txId);
       },
     });
   };
@@ -62,6 +64,23 @@ export function ContractGenerator() {
             <p className="text-sm text-slate-500">Configure and generate an audited USDCx Escrow contract.</p>
         </div>
       </div>
+
+      {deploymentTxId && (
+        <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-2 text-emerald-800">
+                <Rocket className="w-5 h-5" />
+                <span className="font-semibold">Deployment Submitted!</span>
+            </div>
+            <a 
+                href={`https://explorer.hiro.so/txid/${deploymentTxId}?chain=testnet`} 
+                target="_blank" 
+                rel="noreferrer"
+                className="text-sm text-emerald-600 underline hover:text-emerald-800"
+            >
+                View on Explorer
+            </a>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Configuration Form */}
