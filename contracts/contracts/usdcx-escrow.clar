@@ -19,11 +19,8 @@
 (define-constant ERR-INVALID-AMOUNT (err u104))
 
 ;; Data Vars
-;; BENFICIARY: The recipient of funds
 (define-data-var beneficiary principal 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM)
-;; ARBITER: The entity that can release funds
 (define-data-var arbiter principal 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM)
-;; UNLOCK_HEIGHT: Block height after which funds can be refunded
 (define-data-var unlock-height uint u100)
 (define-data-var is-locked bool false)
 
@@ -49,7 +46,7 @@
         (asserts! (> amount u0) ERR-INVALID-AMOUNT)
         
         ;; Perform SIP-010 Transfer
-        ;; Moves USDCx from the sender to this escrow contract
+        ;; Moves USDCx from the sender to this contract
         (try! (contract-call? usdc-contract transfer amount tx-sender (as-contract tx-sender) none))
         
         (var-set is-locked true)
@@ -85,4 +82,20 @@
         ;; Refund to Arbiter (Acting as Depositor/Admin in this simple model)
         (as-contract (contract-call? usdc-contract transfer amount tx-sender (var-get arbiter) none))
     ))
+)
+
+;; Advanced: Burn funds (Bridge-out scenario)
+;; @param amount: Amount to burn
+;; @param xreserve-contract: The USDCx contract implementing xreserve-trait
+(define-public (bridge-out (amount uint) (xreserve-contract <xreserve-trait>))
+    (begin
+        (asserts! (is-eq tx-sender (var-get arbiter)) ERR-NOT-AUTHORIZED)
+        (asserts! (var-get is-locked) ERR-NOT-AUTHORIZED)
+        
+        ;; Perform xReserve Burn
+        ;; This simulates a bridge-out event where funds are removed from Stacks circulation
+        (as-contract (try! (contract-call? xreserve-contract burn amount (var-get beneficiary))))
+        
+        (ok true)
+    )
 )

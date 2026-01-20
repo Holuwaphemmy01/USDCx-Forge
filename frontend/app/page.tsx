@@ -1,14 +1,15 @@
 'use client';
 
 import { BridgeFlowMap } from "@/components/dashboard/BridgeFlowMap";
+import { ContractGenerator } from "@/components/generator/ContractGenerator";
 import { useStacksAuth } from "@/lib/useStacksAuth";
 
 export default function Home() {
   const { connectWallet, disconnectWallet, userData } = useStacksAuth();
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <nav className="border-b bg-white px-6 py-4 flex items-center justify-between">
+    <main className="min-h-screen bg-slate-50 pb-20">
+      <nav className="border-b bg-white px-6 py-4 flex items-center justify-between sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-2">
            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">
              U
@@ -45,20 +46,14 @@ export default function Home() {
         </div>
 
         <BridgeFlowMap />
+        
+        <ContractGenerator />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12 max-w-4xl mx-auto">
-           <div className="p-6 bg-white rounded-xl border border-slate-200 hover:border-blue-500 transition-colors cursor-pointer group">
+           {/* Placeholder for future Safety Checker */}
+           <div className="p-6 bg-white rounded-xl border border-slate-200 hover:border-blue-500 transition-colors cursor-pointer group opacity-60">
               <h3 className="text-lg font-semibold text-slate-900 mb-2 group-hover:text-blue-600">
-                Generate Safe Contracts
-              </h3>
-              <p className="text-slate-600">
-                 Create audited-style Clarity contracts for Escrow and Payment flows.
-              </p>
-           </div>
-           
-           <div className="p-6 bg-white rounded-xl border border-slate-200 hover:border-blue-500 transition-colors cursor-pointer group">
-              <h3 className="text-lg font-semibold text-slate-900 mb-2 group-hover:text-blue-600">
-                Safety Checker
+                Safety Checker (Coming Soon)
               </h3>
               <p className="text-slate-600">
                  Analyze your existing Clarity contracts for common USDCx vulnerabilities.
