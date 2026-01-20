@@ -2,9 +2,12 @@
 
 import { useState } from 'react';
 import { ClarityASTBuilder, EscrowConfig } from '@/lib/generator/builder';
-import { Copy, Download, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Copy, Download, RefreshCw, ShieldCheck, Rocket } from 'lucide-react';
+import { useStacksAuth } from '@/lib/useStacksAuth';
+import { openContractDeploy } from '@stacks/connect';
 
 export function ContractGenerator() {
+  const { userSession, network } = useStacksAuth();
   const [config, setConfig] = useState<EscrowConfig>({
     beneficiary: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM',
     arbiter: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM',
@@ -23,6 +26,24 @@ export function ContractGenerator() {
         setGeneratedCode(code);
         setIsGenerating(false);
     }, 500);
+  };
+
+  const handleDeploy = () => {
+    if (!generatedCode) return;
+    
+    openContractDeploy({
+      contractName: `usdcx-escrow-${Math.floor(Date.now() / 1000)}`,
+      codeBody: generatedCode,
+      network: network, // Use the network from our auth hook (Testnet/Devnet)
+      appDetails: {
+        name: 'USDCx Integration Studio',
+        icon: window.location.origin + '/favicon.ico',
+      },
+      onFinish: (data) => {
+        console.log('Contract deployed!', data);
+        alert(`Contract deployment submitted! TxId: ${data.txId}`);
+      },
+    });
   };
 
   const copyToClipboard = () => {
@@ -103,6 +124,15 @@ export function ContractGenerator() {
             <div className="bg-slate-800 px-4 py-2 flex items-center justify-between border-b border-slate-700">
                 <span className="text-xs font-mono text-slate-400">usdcx-escrow.clar</span>
                 <div className="flex gap-2">
+                    {generatedCode && userSession.isUserSignedIn() && (
+                        <button 
+                            onClick={handleDeploy}
+                            className="flex items-center gap-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-medium transition-colors mr-2"
+                        >
+                            <Rocket className="w-3 h-3" />
+                            Deploy
+                        </button>
+                    )}
                     <button onClick={copyToClipboard} className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white" title="Copy">
                         <Copy className="w-4 h-4" />
                     </button>
