@@ -63,6 +63,7 @@ export const ESCROW_TEMPLATE = `
         (amount (unwrap-panic (contract-call? usdc-contract get-balance (as-contract tx-sender))))
     )
     (begin
+        ;; ARBITER CHECK: Only the designated arbiter can release funds
         (asserts! (is-eq tx-sender (var-get arbiter)) ERR-NOT-AUTHORIZED)
         (asserts! (var-get is-locked) ERR-NOT-AUTHORIZED)
         
@@ -78,6 +79,7 @@ export const ESCROW_TEMPLATE = `
         (amount (unwrap-panic (contract-call? usdc-contract get-balance (as-contract tx-sender))))
     )
     (begin
+        ;; TIMELOCK CHECK: Ensure current block height >= unlock height
         (asserts! (>= block-height (var-get unlock-height)) ERR-NOT-EXPIRED)
         (asserts! (var-get is-locked) ERR-NOT-AUTHORIZED)
         
@@ -91,6 +93,7 @@ export const ESCROW_TEMPLATE = `
 ;; @param xreserve-contract: The USDCx contract implementing xreserve-trait
 (define-public (bridge-out (amount uint) (xreserve-contract <xreserve-trait>))
     (begin
+        ;; ARBITER CHECK: Only arbiter can initiate bridge-out
         (asserts! (is-eq tx-sender (var-get arbiter)) ERR-NOT-AUTHORIZED)
         (asserts! (var-get is-locked) ERR-NOT-AUTHORIZED)
         
