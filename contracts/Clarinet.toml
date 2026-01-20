@@ -5,7 +5,16 @@ authors = []
 telemetry = true
 cache_dir = "./.cache"
 requirements = []
-[contracts]
+[contracts.traits]
+path = "contracts/traits.clar"
+clarity_version = 2
+epoch = 2.5
+
+[contracts.usdcx-escrow]
+path = "contracts/usdcx-escrow.clar"
+clarity_version = 2
+epoch = 2.5
+depends_on = ["traits"]
 [repl]
 cost_abstraction = true
 [analysis]
