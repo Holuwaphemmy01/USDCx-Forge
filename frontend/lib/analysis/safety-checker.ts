@@ -15,6 +15,17 @@ export function analyzeContract(code: string): SafetyIssue[] {
       .map(l => l.replace(/;.*$/, ''))
       .join('\n');
   const normalized = stripComments(code);
+  const flaggedLines = new Set<number>();
+  const isImmediatelyWrapped = (src: string, callStart: number) => {
+    let j = callStart - 1;
+    while (j >= 0 && /\s/.test(src[j])) j--;
+    const candidates = ['(try!', '(unwrap!', '(unwrap-panic', '(match'];
+    for (const c of candidates) {
+      const k = j - c.length + 1;
+      if (k >= 0 && src.slice(k, j + 1) === c) return true;
+    }
+    return false;
+  };
   
   // 1. Check for missing tx-sender validation in public functions
   const publicFuncRegex = /\(define-public\s*\(([^)]+)\)/g;
@@ -127,6 +138,71 @@ export function analyzeContract(code: string): SafetyIssue[] {
         suggestion: `(asserts! (is-eq tx-sender (var-get owner)) (err u100))`
       });
     }
+
+    const transferPatterns = [
+      { kind: 'stx', regex: /\(stx-transfer\?\s+[^\)]*\)/g },
+      { kind: 'ft', regex: /\(ft-transfer\?\s+[^\)]*\)/g },
+      {
+        kind: 'call',
+        regex: /\(contract-call\?\s+([^\s]+)\s+(transfer|mint|burn|deposit|withdraw|release)\s+([^)]+)\)/g
+      }
+    ];
+    transferPatterns.forEach(p => {
+      let tm;
+      while ((tm = p.regex.exec(body)) !== null) {
+        const callStr = tm[0];
+        const relIdx = tm.index;
+        const absLine =
+          startLine + body.substring(0, relIdx).split('\n').length - 1;
+        const isWrapped = isImmediatelyWrapped(body, relIdx);
+        if (isWrapped) continue;
+        const after = body.substring(relIdx);
+        const hasStateAfter =
+          /(var-set|map-insert|map-set|map-delete)/.test(after);
+        const severity = hasStateAfter ? 'high' : 'medium';
+        issues.push({
+          id: `deep-unchecked-${name}-${absLine}-${p.kind}`,
+          severity,
+          title: 'Unchecked Transfer Result',
+          description:
+            `A transfer-like call result is not checked. Use try!, unwrap!, or match to handle failure.`,
+          line: absLine,
+          suggestion: `(try! ${callStr})`
+        });
+        flaggedLines.add(absLine);
+      }
+    });
+
+    const letRegex =
+      /\(let\s*\(\s*\(\s*([a-zA-Z0-9\-]+)\s+\((contract-call\?|stx-transfer\?|ft-transfer\?)[\s\S]*?\)\s*\)\s*\)/g;
+    let lm;
+    while ((lm = letRegex.exec(body)) !== null) {
+      const varName = lm[1];
+      const letIdx = lm.index;
+      const checkVarRegex = new RegExp(
+        "\\((unwrap!|unwrap-panic|match)\\s+\\(?\\s*" + varName + "\\b"
+      );
+      const sub = body.substring(letIdx);
+      const isChecked = checkVarRegex.test(sub);
+      if (!isChecked) {
+        const absLine =
+          startLine + body.substring(0, letIdx).split('\n').length - 1;
+        const after = body.substring(letIdx);
+        const hasStateAfter =
+          /(var-set|map-insert|map-set|map-delete)/.test(after);
+        const severity = hasStateAfter ? 'high' : 'medium';
+        issues.push({
+          id: `deep-unchecked-bound-${name}-${absLine}-${varName}`,
+          severity,
+          title: 'Deferred Transfer Result Not Checked',
+          description:
+            `A bound transfer result is not unwrapped or matched later.`,
+          line: absLine,
+          suggestion: `(unwrap! ${varName} (err u100))`
+        });
+        flaggedLines.add(absLine);
+      }
+    }
   }
 
   // 2. Deep Check: Unchecked Transfer Results (Silent Failures)
@@ -134,21 +210,11 @@ export function analyzeContract(code: string): SafetyIssue[] {
   const contractCallRegex = /\(contract-call\?\s+([^\s]+)\s+(transfer|mint|burn)\s+([^)]+)\)/g;
   let callMatch;
   
-  while ((callMatch = contractCallRegex.exec(code)) !== null) {
+  while ((callMatch = contractCallRegex.exec(normalized)) !== null) {
       const callString = callMatch[0];
       const startIndex = callMatch.index;
       
-      // Look backwards from the start of the call to see if it's wrapped
-      const precedingContext = code.substring(Math.max(0, startIndex - 50), startIndex); // Increased context
-      
-      // Check for wrapping functions
-      const isWrapped = /try!\s*\(?$/.test(precedingContext.trim()) || 
-                        /unwrap!\s*\(?$/.test(precedingContext.trim()) || 
-                        /unwrap-panic\s*\(?$/.test(precedingContext.trim()) ||
-                        /match\s*\(?$/.test(precedingContext.trim()) ||
-                        // Also check if it's being bound in a let (which implies it MIGHT be checked later, but strictly we prefer direct checks for transfers)
-                        // However, simpler to flag it if not strictly wrapped in try/unwrap for this demo
-                        /\(\s*let\s*\(\s*\(\s*[a-zA-Z0-9-]+\s*$/.test(precedingContext.trim());
+      const isWrapped = isImmediatelyWrapped(normalized, startIndex);
 
       if (!isWrapped) {
           // Check if it's the last expression in a response (e.g., just returning the result)
@@ -160,7 +226,7 @@ export function analyzeContract(code: string): SafetyIssue[] {
               severity: 'medium',
               title: 'Unchecked Transfer Result',
               description: `A '${callMatch[2]}' call was detected that does not appear to check its return value. In Clarity, if a contract call fails and is not unwrapped, the transaction might not revert as expected. Use (try! ...) or (unwrap! ...).`,
-              line: code.substring(0, startIndex).split('\n').length,
+              line: normalized.substring(0, startIndex).split('\n').length,
               suggestion: `(try! ${callString})`
           });
       }
