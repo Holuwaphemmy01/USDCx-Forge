@@ -34,30 +34,27 @@ export function BridgeFlowMap() {
 
   useEffect(() => {
     async function fetchBalances() {
-      // 1. Fetch Ethereum USDC Balance
+      if (!userData) {
+        setEthBalance('0');
+        setUsdcxBalance('0');
+        return;
+      }
       const ethBal = await getUSDCBalance(mockEthAddress);
       setEthBalance(ethBal);
-
-      // 2. Fetch Stacks USDCx Balance (Mock for now until contract interaction is set up)
-      if (userData) {
-          // const stxBal = await getUSDCxBalance(userData.profile.stxAddress.testnet);
-          setUsdcxBalance('100'); // Mocked
-      }
+      setUsdcxBalance('100');
     }
 
     fetchBalances();
-    const interval = setInterval(fetchBalances, 10000); // Poll every 10s
+    const interval = setInterval(fetchBalances, 10000);
     
-    // 3. Setup Bridge Listener
-    const unwatch = watchUSDCDeposits(mockEthAddress, (deposit) => {
-        console.log("Deposit detected:", deposit);
-        setRecentDeposit(deposit);
-        // Refresh balances immediately on deposit
-        fetchBalances();
-        
-        // Clear notification after 5s
-        setTimeout(() => setRecentDeposit(null), 5000);
-    });
+    const unwatch = userData
+      ? watchUSDCDeposits(mockEthAddress, (deposit) => {
+          console.log("Deposit detected:", deposit);
+          setRecentDeposit(deposit);
+          fetchBalances();
+          setTimeout(() => setRecentDeposit(null), 5000);
+        })
+      : () => {};
 
     return () => {
         clearInterval(interval);
@@ -144,7 +141,8 @@ export function BridgeFlowMap() {
             </div>
             <button 
                 onClick={() => setShowConsole(!showConsole)}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-slate-900 text-white rounded-md hover:bg-slate-800 transition-colors"
+                disabled={!userData}
+                className={`flex items-center gap-2 px-4 py-2 text-sm rounded-md transition-colors ${!userData ? 'bg-slate-400 text-white cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
             >
                 <Code2 className="w-4 h-4" />
                 {showConsole ? 'Hide Console' : 'View Transaction'}

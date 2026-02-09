@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { analyzeContract, generateSafeContract, SafetyIssue } from '@/lib/analysis/safety-checker';
 import { AlertTriangle, CheckCircle, Search, ShieldAlert, ArrowRightLeft, Copy } from 'lucide-react';
 
@@ -19,6 +19,9 @@ export function SafetyChecker() {
   const [safeCode, setSafeCode] = useState('');
   const [issues, setIssues] = useState<SafetyIssue[]>([]);
   const [showDiff, setShowDiff] = useState(false);
+  const [showOnlyChanges, setShowOnlyChanges] = useState(false);
+  const leftRef = useRef<HTMLDivElement>(null);
+  const rightRef = useRef<HTMLDivElement>(null);
 
   const handleAnalyze = () => {
     const foundIssues = analyzeContract(code);
@@ -30,6 +33,61 @@ export function SafetyChecker() {
     } else {
         setShowDiff(false);
     }
+  };
+
+  const diffRows = useMemo(() => {
+    const a = code.split('\n');
+    const b = safeCode.split('\n');
+    const n = a.length;
+    const m = b.length;
+    const dp: number[][] = Array.from({ length: n + 1 }, () => Array(m + 1).fill(0));
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    const rows: { left?: string; right?: string; type: 'equal' | 'insert' | 'delete' }[] = [];
+    let i = 0;
+    let j = 0;
+    while (i < n && j < m) {
+      if (a[i] === b[j]) {
+        rows.push({ left: a[i], right: b[j], type: 'equal' });
+        i++;
+        j++;
+      } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+        rows.push({ left: a[i], right: undefined, type: 'delete' });
+        i++;
+      } else {
+        rows.push({ left: undefined, right: b[j], type: 'insert' });
+        j++;
+      }
+    }
+    while (i < n) {
+      rows.push({ left: a[i], right: undefined, type: 'delete' });
+      i++;
+    }
+    while (j < m) {
+      rows.push({ left: undefined, right: b[j], type: 'insert' });
+      j++;
+    }
+    if (!showOnlyChanges) return rows;
+    const changedIdx: number[] = [];
+    rows.forEach((r, idx) => {
+      if (r.type !== 'equal') changedIdx.push(idx);
+    });
+    const keep = new Set<number>();
+    const ctx = 2;
+    changedIdx.forEach(idx => {
+      for (let k = Math.max(0, idx - ctx); k <= Math.min(rows.length - 1, idx + ctx); k++) keep.add(k);
+    });
+    return rows.filter((_, idx) => keep.has(idx));
+  }, [code, safeCode, showOnlyChanges]);
+
+  const changesCount = useMemo(() => diffRows.filter(r => r.type !== 'equal').length, [diffRows]);
+
+  const syncScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const other = e.currentTarget === leftRef.current ? rightRef.current : leftRef.current;
+    if (other) other.scrollTop = e.currentTarget.scrollTop;
   };
 
   return (
@@ -52,7 +110,7 @@ export function SafetyChecker() {
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${showDiff ? 'bg-slate-200 text-slate-700' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
                 >
                     <ArrowRightLeft className="w-4 h-4" />
-                    {showDiff ? 'Show Analysis' : 'Show Fix Diff'}
+                    {showDiff ? 'Show Analysis' : 'Show Security Diff'}
                 </button>
             </div>
         )}
@@ -83,7 +141,7 @@ export function SafetyChecker() {
         <div className="flex flex-col h-full bg-slate-50 border border-slate-200 rounded-lg overflow-hidden">
             <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
                 <span className="text-sm font-semibold text-slate-700">
-                    {showDiff ? 'Proposed Fixes (Safe Code)' : 'Analysis Report'}
+                    {showDiff ? 'Security Diff' : 'Analysis Report'}
                 </span>
                 {issues.length > 0 && (
                     <span className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full font-medium">
@@ -99,19 +157,43 @@ export function SafetyChecker() {
                         <p>No issues detected or analysis not run.</p>
                     </div>
                 ) : showDiff ? (
-                    <div className="relative h-full">
-                        <textarea 
-                            readOnly
-                            value={safeCode}
-                            className="w-full h-full p-4 font-mono text-sm bg-green-50/50 text-slate-800 resize-none focus:outline-none"
-                        />
-                        <button 
-                            onClick={() => navigator.clipboard.writeText(safeCode)}
-                            className="absolute top-4 right-4 p-2 bg-white/80 hover:bg-white rounded shadow text-slate-500 hover:text-slate-800"
-                            title="Copy Safe Code"
-                        >
-                            <Copy className="w-4 h-4" />
-                        </button>
+                    <div className="relative h-full flex flex-col">
+                        <div className="flex items-center justify-between px-4 py-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">{changesCount} Changes</span>
+                            <label className="flex items-center gap-2 text-xs text-slate-600">
+                              <input type="checkbox" checked={showOnlyChanges} onChange={e => setShowOnlyChanges(e.target.checked)} />
+                              Show only changes
+                            </label>
+                          </div>
+                          <button 
+                              onClick={() => navigator.clipboard.writeText(safeCode)}
+                              className="p-2 bg-white hover:bg-slate-100 rounded shadow text-slate-600 hover:text-slate-800"
+                              title="Copy Safe Code"
+                          >
+                              <Copy className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-0 flex-1">
+                          <div ref={leftRef} onScroll={syncScroll} className="overflow-auto border-r border-slate-200">
+                            <div className="min-h-full">
+                              {diffRows.map((r, idx) => (
+                                <div key={idx} className={`px-4 py-0.5 font-mono text-xs ${r.type === 'equal' ? 'bg-white' : r.type === 'delete' ? 'bg-red-50' : 'bg-white'}`}>
+                                  <pre className="whitespace-pre-wrap">{r.left ?? ''}</pre>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div ref={rightRef} onScroll={syncScroll} className="overflow-auto">
+                            <div className="min-h-full">
+                              {diffRows.map((r, idx) => (
+                                <div key={idx} className={`px-4 py-0.5 font-mono text-xs ${r.type === 'equal' ? 'bg-white' : r.type === 'insert' ? 'bg-green-50' : 'bg-white'}`}>
+                                  <pre className="whitespace-pre-wrap">{r.right ?? ''}</pre>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
                     </div>
                 ) : (
                     <div className="p-4 space-y-3">

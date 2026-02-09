@@ -21,17 +21,17 @@ export class ClarityASTBuilder {
         // For now we assume valid principals are passed from the UI form
         
         // 2. Inject Beneficiary
-        contract = contract.replace('{{BENEFICIARY}}', config.beneficiary);
+        contract = contract.replaceAll('{{BENEFICIARY}}', config.beneficiary);
 
         // 3. Inject Arbiter
-        contract = contract.replace('{{ARBITER}}', config.arbiter);
+        contract = contract.replaceAll('{{ARBITER}}', config.arbiter);
 
         // 4. Inject Unlock Height
-        contract = contract.replace('{{UNLOCK_HEIGHT}}', config.unlockHeight.toString());
+        contract = contract.replaceAll('{{UNLOCK_HEIGHT}}', config.unlockHeight.toString());
 
         // 5. Inject USDC Trait Contract (e.g., 'SP3NE50GEXFG9SZGTT51P40X2CKYSZ5CC4ZTZ7A2G.usdc-token')
         // We only need the contract principal part if the trait is defined there
-        contract = contract.replace('{{USDC_TRAIT_CONTRACT}}', config.usdcTraitContract);
+        contract = contract.replaceAll('{{USDC_TRAIT_CONTRACT}}', config.usdcTraitContract);
 
         return contract;
     }

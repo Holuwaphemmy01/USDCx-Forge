@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ClarityASTBuilder, EscrowConfig } from '@/lib/generator/builder';
 import { Copy, Download, RefreshCw, ShieldCheck, Rocket } from 'lucide-react';
 import { useStacksAuth } from '@/lib/useStacksAuth';
@@ -8,18 +8,27 @@ import { useStacksAuth } from '@/lib/useStacksAuth';
 export function ContractGenerator() {
   const { userSession, network, deployContract } = useStacksAuth();
   const [config, setConfig] = useState<EscrowConfig>({
-    beneficiary: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM',
-    arbiter: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM',
-    unlockHeight: 100,
-    usdcTraitContract: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.usdc-token'
+    beneficiary: '',
+    arbiter: '',
+    unlockHeight: 0,
+    usdcTraitContract: ''
   });
 
   const [generatedCode, setGeneratedCode] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const isValid = useMemo(() => {
+    const principalRegex = /^ST[0-9A-Z]{38}$/i;
+    const ben = principalRegex.test(config.beneficiary.trim());
+    const arb = principalRegex.test(config.arbiter.trim());
+    const parts = config.usdcTraitContract.trim().split('.');
+    const trait = parts.length === 2 && principalRegex.test(parts[0]) && parts[1].length > 0;
+    const height = typeof config.unlockHeight === 'number' && Number.isFinite(config.unlockHeight) && config.unlockHeight > 0;
+    return ben && arb && trait && height;
+  }, [config]);
 
   const handleGenerate = () => {
+    if (!isValid) return;
     setIsGenerating(true);
-    // Simulate processing time
     setTimeout(() => {
         const code = ClarityASTBuilder.generateEscrow(config);
         setGeneratedCode(code);
@@ -90,7 +99,8 @@ export function ContractGenerator() {
                     type="text" 
                     value={config.beneficiary}
                     onChange={(e) => setConfig({...config, beneficiary: e.target.value})}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono"
+                    placeholder="ST......................................"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono text-slate-900 placeholder:text-slate-400"
                 />
                 <p className="text-xs text-slate-500 mt-1">The Stacks address that will receive the funds.</p>
             </div>
@@ -101,7 +111,8 @@ export function ContractGenerator() {
                     type="text" 
                     value={config.arbiter}
                     onChange={(e) => setConfig({...config, arbiter: e.target.value})}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono"
+                    placeholder="ST......................................"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono text-slate-900 placeholder:text-slate-400"
                 />
                 <p className="text-xs text-slate-500 mt-1">The address authorized to release or refund funds.</p>
             </div>
@@ -113,7 +124,8 @@ export function ContractGenerator() {
                         type="number" 
                         value={config.unlockHeight}
                         onChange={(e) => setConfig({...config, unlockHeight: parseInt(e.target.value)})}
-                        className="w-full px-4 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono"
+                        placeholder="e.g., 100"
+                        className="w-full px-4 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono text-slate-900 placeholder:text-slate-400"
                     />
                 </div>
                 <div>
@@ -122,15 +134,16 @@ export function ContractGenerator() {
                         type="text" 
                         value={config.usdcTraitContract}
                         onChange={(e) => setConfig({...config, usdcTraitContract: e.target.value})}
-                        className="w-full px-4 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono"
+                        placeholder="ST...usdc-token"
+                        className="w-full px-4 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono text-slate-900 placeholder:text-slate-400"
                     />
                 </div>
             </div>
 
             <button 
                 onClick={handleGenerate}
-                disabled={isGenerating}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                disabled={isGenerating || !isValid}
+                className={`w-full py-3 ${isGenerating || !isValid ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} text-white font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50`}
             >
                 {isGenerating ? <RefreshCw className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
                 Generate Contract
