@@ -4,10 +4,9 @@ import { useState } from 'react';
 import { ClarityASTBuilder, EscrowConfig } from '@/lib/generator/builder';
 import { Copy, Download, RefreshCw, ShieldCheck, Rocket } from 'lucide-react';
 import { useStacksAuth } from '@/lib/useStacksAuth';
-import { openContractDeploy } from '@stacks/connect';
 
 export function ContractGenerator() {
-  const { userSession, network } = useStacksAuth();
+  const { userSession, network, deployContract } = useStacksAuth();
   const [config, setConfig] = useState<EscrowConfig>({
     beneficiary: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM',
     arbiter: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM',
@@ -33,7 +32,7 @@ export function ContractGenerator() {
   const handleDeploy = () => {
     if (!generatedCode) return;
     
-    openContractDeploy({
+    deployContract({
       contractName: `usdcx-escrow-${Math.floor(Date.now() / 1000)}`,
       codeBody: generatedCode,
       network: network, // Use the network from our auth hook (Testnet/Devnet)
@@ -41,7 +40,7 @@ export function ContractGenerator() {
         name: 'USDCx Integration Studio',
         icon: window.location.origin + '/favicon.ico',
       },
-      onFinish: (data) => {
+      onFinish: (data: any) => {
         console.log('Contract deployed!', data);
         setDeploymentTxId(data.txId);
       },
